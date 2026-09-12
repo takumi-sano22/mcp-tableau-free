@@ -82,7 +82,7 @@ python3 -m venv .venv
 
 ### ChatGPT Workに接続
 
-ChatGPT Workからローカルサーバを使う場合は、OpenAIの[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)を使います。ChatGPT Workに`.mcp.json`を読み込ませるのではなく、Windows上の`tunnel-client`が外向きHTTPSでOpenAIへ接続し、ローカルのstdio MCPへ要求を転送します。受信ポートの開放や、認証なしの公開URLは不要です。
+ChatGPT Workからローカルサーバを使う場合は、OpenAIの[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)を使います。ChatGPT Workに`.mcp.json`を読み込ませるのではなく、WSL上の`tunnel-client`が外向きHTTPSでOpenAIへ接続し、同じWSL上のstdio MCPへ要求を転送します。受信ポートの開放や、認証なしの公開URLは不要です。
 
 公式の`tunnel-client`はローカルMCPへのstdio接続をサポートするため、このサーバをHTTP化する必要はありません。既存のClaude Code向けstdio起動をそのまま共用します。
 
@@ -94,14 +94,18 @@ ChatGPT Workからローカルサーバを使う場合は、OpenAIの[Secure MCP
 - ChatGPT側のdeveloper mode利用権限
 - Tunnelに、利用するPlatform organizationとChatGPT workspaceが関連付けられていること
 
-Windowsのリポジトリ直下で、PlatformのTunnel設定から取得した最新の`tunnel-client`を使います。以下の値は例なので、実際の値へ置き換えてください。
+PlatformのTunnel設定からLinux x86_64版の最新`tunnel-client`を取得し、WSL上で実行できるようにします。以下はWSLのリポジトリ直下で実行し、値を実際のものへ置き換えてください。
 
-```powershell
-$env:CONTROL_PLANE_API_KEY = "<runtime API key>"
-$env:TABLEAU_DATA_DIR = (Resolve-Path data).Path
+```bash
+chmod +x /path/to/tunnel-client
+export PATH="/path/to/tunnel-client-directory:$PATH"
+
+export CONTROL_PLANE_API_KEY="<runtime API key>"
+export TABLEAU_DATA_DIR="$(pwd)/data"
+TABLEAU_MCP_ROOT="$(pwd)"
 
 tunnel-client help quickstart
-tunnel-client init --sample sample_mcp_stdio_local --profile tableau-local --tunnel-id <tunnel_id> --mcp-command ".\.venv\Scripts\python.exe -m experiments.tableau_local.server"
+tunnel-client init --sample sample_mcp_stdio_local --profile tableau-local --tunnel-id "tunnel_..." --mcp-command "$TABLEAU_MCP_ROOT/.venv/bin/python -m experiments.tableau_local.server"
 
 tunnel-client doctor --profile tableau-local --explain
 tunnel-client run --profile tableau-local
@@ -175,7 +179,7 @@ Hyper APIは起動時の作業ディレクトリに`hyperd.log`を作ります�
 
 Windows側へコピーしたサンプルをTableau Desktop 2026.2で開き、3行の値がMCPの戻り値と一致することを確認しました。承認後の`claude mcp list`が`tableau-local`を`Connected`と表示することも確認しています。
 
-2026-09-12にChatGPT Work向けの公式接続方式も確認しました。Secure MCP TunnelはローカルMCPへのstdio接続に対応するため、サーバのHTTP化は不要と判断しました。ChatGPT Workの管理された作業環境内では、独立したMCPクライアントからstdio接続し、3つのtoolの検出と`list_hyper_files`の呼び出しまで確認しました。ただし、この環境ではHyperプロセスのローカルソケット作成が`Operation not permitted`で拒否されたため、サンプル生成とChatGPT WorkからのTunnel経由の3 tool呼び出しは未確認です。完了確認は、上記手順をローカルWindowsで実行して行います。
+2026-09-12にChatGPT Work向けの公式接続方式も確認しました。Secure MCP TunnelはローカルMCPへのstdio接続に対応するため、サーバのHTTP化は不要と判断しました。ChatGPT Workの管理された作業環境内では、独立したMCPクライアントからstdio接続し、3つのtoolの検出と`list_hyper_files`の呼び出しまで確認しました。ただし、この環境ではHyperプロセスのローカルソケット作成が`Operation not permitted`で拒否されたため、サンプル生成とChatGPT WorkからのTunnel経由の3 tool呼び出しは未確認です。完了確認は、上記手順をローカルWSLで実行して行います。
 
 ## 参考
 
