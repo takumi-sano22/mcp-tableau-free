@@ -1,12 +1,13 @@
 # mcp-tableau-free
 
-ローカルにインストールした **Tableau の無料版**を、AI（Claude Code など）から扱うための道具一式です。
+ローカルにインストールした **Tableau の無料版**を、AI（Claude Code や ChatGPT Work）から扱うための道具一式です。
 お金をかけずに、データの準備からワークブックの生成までを AI に任せることを目指しています。
 
-入っているものは2つです。
+入っているものは3つです。
 
 1. **ローカル MCP サーバ** — `.hyper` ファイルの中身を AI から直接読めるようにします
-2. **スキル2つ** — Tableau 分析の進め方と、ローカル MCP の登録手順を AI に教えます
+2. **Claude Code 用スキル2つ** — Tableau 分析の進め方と、ローカル MCP の登録手順を AI に教えます
+3. **ChatGPT / Codex 用 Plugin** — 同じ分析知識と ChatGPT Work 向けの安全な接続・確認手順を配布します
 
 Tableau Cloud / Server は使いません。すべて手元のファイルで完結します。
 
@@ -16,7 +17,8 @@ Tableau Cloud / Server は使いません。すべて手元のファイルで完
 
 - **Tableau の無料版が PC にインストール済み**であること（`.hyper` を開いて中身を確認するために使います）
 - 64 ビット版 Python 3.11〜3.14
-- Claude Code（Claude Cowork・ChatGPT Work からも使えるはずですが、[動作確認](#動作確認済み環境)は Claude Code だけです）
+- Claude Code、または Developer mode と Secure MCP Tunnel を利用できる ChatGPT workspace
+- ChatGPT Work で Skill も使う場合は、Plugin のインストールまたは workspace への公開権限
 
 WSL で作業する場合、Tableau 本体は Windows 側のままで構いません。ファイルの受け渡しだけ気をつけます。
 
@@ -94,10 +96,30 @@ sample.hyper の中身を見せて
 
 ### 4. スキルを入れる
 
+#### Claude Code
+
 このリポジトリの中で `claude` を起動する場合、`.claude/skills/` のスキルは**そのまま使えます**。何もしなくて構いません。
 
 会話の内容から自動で起動しますが、`/tableau-analysis` のように名前を指定しても呼べます。
 ほかのプロジェクトや全プロジェクトで使いたい場合は、[リポジトリの外から使う](#リポジトリの外から使う)を見てください。
+
+#### ChatGPT Work / Codex
+
+ChatGPT Work は `.claude/skills/` を直接読みません。`plugins/mcp-tableau-free/` に、ChatGPT と Codex が扱える Plugin として次を同梱しています。
+
+- `tableau-analysis` — Claude Code 版と同じ reference・script・雛形を含む、提供元に依存しない版
+- `tableau-local-mcp` — Secure MCP Tunnel の準備、3 tool の呼び出し順、未確認事項の切り分け
+
+repo marketplace は `.agents/plugins/marketplace.json` です。ChatGPT desktop app と同じ環境の Codex CLI から、GitHub 上のこのリポジトリを追加できます。
+
+```bash
+codex plugin marketplace add takumi-sano22/mcp-tableau-free
+codex plugin marketplace list
+```
+
+作業ブランチを試す場合は `--ref <branch-name>` を付けます。追加後、ChatGPT desktop app を再起動し、Plugins Directory の `mcp-tableau-free` から Plugin をインストールします。ChatGPT の web 版でも使うには、workspace 管理者が Personal の Plugin を workspace へ公開します。
+
+Tunnel で作成した developer-mode app の技術 ID は workspace ごとに異なるため、Plugin へ固定していません。MCP 接続と Skill Plugin を同じ会話で有効にして使います。認証情報、`tunnel_id`、個人環境の絶対パスは Plugin に含めません。
 
 ---
 
@@ -277,12 +299,16 @@ Tableau のワークブック形式は公開仕様（公式 XSD）と実装が�
 
 プロジェクト固有の事情は `references/projects/<名前>/` に置きます。書き方は同ディレクトリの `README.md` にあります。
 
-### `mcp-local-server` — ローカル MCP の登録と確認
+### `mcp-local-server` — Claude Code でのローカル MCP 登録と確認
 
 stdio 形式の MCP サーバを Claude Code に登録し、**実際に tool を呼べるところまで**確認する手順です。
 スコープ（user / project / local）の選び方、承認と再起動の要否、繋がらないときの切り分け、`claude -p` を使った tool の実呼び出し検証を扱います。
 
 このリポジトリの `.mcp.json` は、このスキルが説明している project スコープの実例そのものです。
+
+### `tableau-local-mcp` — ChatGPT Work での接続と実測確認
+
+`plugins/mcp-tableau-free/` にだけ含む ChatGPT / Codex 用 Skill です。Secure MCP Tunnel の権限・workspace 関連付け・WSL 側の起動を切り分け、接続後は3つの tool を順番に呼びます。東京 1200・大阪 900・福岡 600 を実際の戻り値で確認できない限り、完了扱いにしません。
 
 ---
 
@@ -343,15 +369,71 @@ cp data/sample.hyper /mnt/c/Users/<Windowsユーザー名>/Desktop/sample_tablea
 
 ## ChatGPT Work から使う
 
-OpenAI の [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) を経由すると、
-このサーバを ChatGPT Work からも呼べます。`tunnel-client` が外向き HTTPS で接続してローカルの stdio MCP へ転送するため、
-**サーバを HTTP 化する必要も、ポートを開ける必要もありません**。Claude Code 向けの起動方式をそのまま共用できます。
+OpenAI の [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) を使います。`tunnel-client` が WSL から外向き HTTPS で接続し、ローカルの stdio MCP へ転送するため、**サーバの HTTP 化も受信ポートの開放も不要**です。既存の `.mcp.json` と stdio 起動は変更しません。
 
-手順は [#4](https://github.com/takumi-sano22/mcp-tableau-free/issues/4) で扱っています。
-**エンドツーエンドの動作は未確認**です。確認済みなのは Claude Code からの経路だけです。
+### 1. 権限と接続範囲
 
-ほかの MCP クライアントに登録する場合は、`examples/mcp-config.json` の `C:/path/to/...` を実際の絶対パスへ置き換えて使ってください
-（`.mcp.json` の `${VAR:-既定値}` という書き方は Claude Code 固有の展開です）。
+事前に次を用意します。
+
+- Platform tunnel settings で作成した `tunnel_id` と runtime API key
+- 実行者の Tunnels Read + Use 権限。Tunnel の作成・編集には Read + Manage も必要
+- ChatGPT workspace の Developer mode 利用権限
+- Tunnel と対象 ChatGPT workspace の関連付け
+- WSL から `api.openai.com:443` への外向き HTTPS
+
+runtime API key、`tunnel_id`、Tunnel profile はリポジトリへコミットしません。ローカル MCP は外部へ公開しません。
+
+### 2. WSL でサンプルと Tunnel を起動
+
+リポジトリ直下でサンプルを生成したあと、Platform tunnel settings から取得した最新の `tunnel-client` を使います。値は実環境のものへ置き換えてください。
+
+```bash
+./.venv/bin/python examples/create_sample_hyper.py
+
+chmod +x /path/to/tunnel-client
+export PATH="/path/to/tunnel-client-directory:$PATH"
+export CONTROL_PLANE_API_KEY="<runtime API key>"
+
+TABLEAU_MCP_ROOT="$(pwd)"
+export TABLEAU_DATA_DIR="$TABLEAU_MCP_ROOT/data"
+
+tunnel-client help quickstart
+tunnel-client init \
+  --sample sample_mcp_stdio_local \
+  --profile tableau-local \
+  --tunnel-id "tunnel_..." \
+  --mcp-command "$TABLEAU_MCP_ROOT/.venv/bin/python -m experiments.tableau_local.server"
+
+tunnel-client doctor --profile tableau-local --explain
+tunnel-client run --profile tableau-local
+```
+
+`run` は ChatGPT からの確認中も起動したままにします。
+
+### 3. ChatGPT Work で接続
+
+1. Settings → Security and login で Developer mode を有効にする
+2. ChatGPT Plugins の追加ボタンから developer-mode app を作る
+3. Connection で Tunnel を選び、対象 Tunnel または `tunnel_id` を指定する
+4. 検出された `list_hyper_files`、`list_hyper_tables`、`preview_hyper_table` を確認する
+5. 新しい会話で MCP 接続と `mcp-tableau-free` Plugin を有効にする
+6. 「`sample.hyper` の中身を確認して」と依頼する
+
+Tunnel が表示されない場合は、対象 ChatGPT workspace との関連付けと Tunnels Read + Use 権限を確認します。
+
+### 4. 完了判定
+
+| 呼び出し | 実測する結果 |
+| --- | --- |
+| `list_hyper_files()` | `sample.hyper` |
+| `list_hyper_tables(filename="sample.hyper")` | `Extract` / `Sales` |
+| `preview_hyper_table(filename="sample.hyper", schema="Extract", table="Sales", limit=10)` | 東京 1200・大阪 900・福岡 600 |
+
+行の並び順は保証されません。3つの呼び出しと値を実測できたときだけ Issue #4 の完了条件を満たします。
+
+ChatGPT Work の管理された実行環境からローカル WSL の Tunnel を起動することはできないため、現時点でこの E2E は未確認です。確認済みなのは、同じ stdio MCP に独立した MCP クライアントから接続して3つの tool を検出し、`list_hyper_files` を呼べる境界までです。ローカル Hyper の読み取りと Tunnel 経由の呼び出しを推測で完了扱いにはしません。
+
+Plugin の接続・Skillテストについては [OpenAI の手順](https://developers.openai.com/plugins/deploy/connect-chatgpt) も参照してください。
 
 ---
 
@@ -359,8 +441,17 @@ OpenAI の [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/sec
 
 ```text
 .claude/skills/
-  tableau-analysis/      Tableau 分析スキル（reference・script・雛形）
-  mcp-local-server/      ローカル MCP の登録・確認スキル
+  tableau-analysis/      Claude Code 用 Tableau 分析スキル
+  mcp-local-server/      Claude Code 用ローカル MCP 運用スキル
+.agents/plugins/
+  marketplace.json       ChatGPT / Codex 用 repo marketplace
+plugins/
+  mcp-tableau-free/
+    plugin.json          portable Agent Plugin manifest
+    .codex-plugin/       Codex 互換 manifest
+    skills/
+      tableau-analysis/  provider-neutral な Tableau 分析スキル
+      tableau-local-mcp/ ChatGPT Work の接続・確認スキル
 experiments/
   tableau_local/
     server.py            MCP サーバ本体
@@ -385,6 +476,8 @@ Windows 側へコピーしたサンプルを Tableau Desktop 2026.2 で開き、
 [リポジトリの外から使う](#リポジトリの外から使う)の手順は、WSL2 側で user スコープ登録（`claude mcp add-json` → リポジトリ外で `✔ Connected`）とスキルのコピーまで確認しました。
 PowerShell 側は `Copy-Item` の上書き挙動と、ネイティブコマンドへ渡す JSON から引用符が落ちること（PowerShell 5.1）だけ実測しています。
 **Windows 版 Claude Code からの user スコープ接続は未確認です。**
+
+ChatGPT Work の管理された実行環境では、独立した MCP クライアントから stdio 接続し、3 tool の検出と空のデータディレクトリに対する `list_hyper_files` 呼び出しまで確認しました。同環境では Hyper プロセスのローカルソケット作成が `Operation not permitted` で拒否されたため、ローカル WSL の Tunnel と `sample.hyper` を使う E2E は未確認です。
 
 `tableau-analysis` スキルのワークブック生成まわりの記述は、Tableau Desktop 2026.2（Windows）での実測にもとづきます。
 **版が変われば構造も変わります。** 雛形は必ず対象環境で取り直してください。
