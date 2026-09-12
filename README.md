@@ -94,15 +94,160 @@ sample.hyper の中身を見せて
 
 ### 4. スキルを入れる
 
-このリポジトリの中で `claude` を起動する場合、`.claude/skills/` のスキルは**そのまま使えます**。
-ほかのプロジェクトでも使いたい場合は、ホームへコピーします。
+このリポジトリの中で `claude` を起動する場合、`.claude/skills/` のスキルは**そのまま使えます**。何もしなくて構いません。
+
+会話の内容から自動で起動しますが、`/tableau-analysis` のように名前を指定しても呼べます。
+ほかのプロジェクトや全プロジェクトで使いたい場合は、[リポジトリの外から使う](#リポジトリの外から使う)を見てください。
+
+---
+
+## リポジトリの外から使う
+
+ここまでの導入が済んでいれば、**ほかのプロジェクトからも同じサーバとスキルを呼べます**。運ぶものは2つだけです。
+
+| 運ぶもの | A. 全プロジェクトで使う（user スコープ） | B. 特定のプロジェクトだけで使う（project スコープ） |
+| --- | --- | --- |
+| MCP の接続設定 | `~/.claude.json` に追記する | 対象リポジトリ直下の `.mcp.json` |
+| スキル2つ | `~/.claude/skills/` へコピー | `<対象リポジトリ>/.claude/skills/` へコピー |
+
+同名なら **project が user より優先**されます。両方に入れても壊れません。
+
+> **MCP の設定は `.claude/` の中ではありません。** 紛らわしいのですが、user スコープは `~/.claude/` ではなく `~/.claude.json`（ファイル）、project スコープはリポジトリ直下の `.mcp.json` です。`.claude/` に入るのはスキルだけです。
+
+以下、`<clone先>` はこのリポジトリを clone した場所の**絶対パス**に読み替えてください。
+
+| 環境 | `<clone先>` の例 |
+| --- | --- |
+| WSL / Linux / macOS | `/home/<ユーザー名>/project/mcp-tableau-free` |
+| Windows | `C:/Users/<ユーザー名>/project/mcp-tableau-free`（JSON の中は `/` 区切りが安全です） |
+
+**リポジトリの外から使うときは、必ず絶対パスにします。** 起動時の作業ディレクトリが毎回変わるため、`.venv/bin/python` のような相対パスは解決できません。
+
+### A. 全プロジェクトで使う（user スコープ）
+
+#### A-1. MCP を登録する
+
+**WSL / Linux / macOS** — コマンド一発で登録できます。
 
 ```bash
-cp -r .claude/skills/tableau-analysis ~/.claude/skills/
-cp -r .claude/skills/mcp-local-server ~/.claude/skills/
+claude mcp add-json tableau-local '{
+  "type": "stdio",
+  "command": "<clone先>/.venv/bin/python",
+  "args": ["-m", "experiments.tableau_local.server"],
+  "env": { "TABLEAU_DATA_DIR": "<clone先>/data" }
+}' -s user
 ```
 
-Claude Code を再起動すると読み込まれます。会話の内容から自動で起動しますが、`/tableau-analysis` のように名前を指定しても呼べます。
+**Windows（PowerShell）** — `C:\Users\<ユーザー名>\.claude.json` を開き、`mcpServers` の中へ次を貼ります。
+
+```json
+    "tableau-local": {
+      "type": "stdio",
+      "command": "<clone先>/.venv/Scripts/python.exe",
+      "args": ["-m", "experiments.tableau_local.server"],
+      "env": { "TABLEAU_DATA_DIR": "<clone先>/data" }
+    }
+```
+
+PowerShell 5.1 はネイティブコマンドへ渡す引数から引用符を落とすため、`claude mcp add-json` に JSON をそのまま渡すと壊れます（実測）。Windows ではファイルを直接編集してください。
+`~/.claude.json` は Claude Code が作るファイルで、通常はすでに `mcpServers` があります。ほかのサーバが並んでいる場合は、区切りのカンマを忘れないでください。`mcpServers` 自体が無ければ `{ "mcpServers": { ... } }` の形で作ります。
+
+#### A-2. スキルを置く
+
+**始めに `.claude/` へ cd した状態**から続けます。
+
+**WSL / Linux / macOS**
+
+```bash
+mkdir -p ~/.claude/skills
+cd ~/.claude
+cp -r <clone先>/.claude/skills/{tableau-analysis,mcp-local-server} skills/
+```
+
+**Windows（PowerShell）**
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
+cd "$env:USERPROFILE\.claude"
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\tableau-analysis" skills\
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\mcp-local-server" skills\
+```
+
+> **更新するときは、コピー先の同名ディレクトリを先に消します。** `cp -r` はコピー先に同名ディレクトリがあると、その中へ入れ子にコピーします（`skills/tableau-analysis/tableau-analysis/` ができます）。`rm -rf skills/tableau-analysis skills/mcp-local-server` してからコピーしてください。PowerShell の `Copy-Item -Force` は同じ場所へ上書きしますが、コピー元から消えたファイルは残ります。
+
+#### A-3. 確認する
+
+**このリポジトリの外**で確認します。中で実行すると project スコープが優先され、user 側が隠れて判定を誤ります。
+
+```bash
+cd ~   # 別のプロジェクトでもかまいません
+claude mcp get tableau-local
+```
+
+`Scope: User config (available in all your projects)` と `✔ Connected` が出れば完了です。
+
+### B. 特定のプロジェクトだけで使う（project スコープ）
+
+設定をチームや別のマシンと共有したい場合、そのプロジェクトの `data/` を読ませたい場合はこちらです。
+
+#### B-1. `.mcp.json` を置く
+
+対象リポジトリの**直下**（`.claude/` の中ではありません）に `.mcp.json` を作ります。`.claude/` にいるなら1つ上です。
+
+```json
+{
+  "mcpServers": {
+    "tableau-local": {
+      "command": "<clone先>/.venv/bin/python",
+      "args": ["-m", "experiments.tableau_local.server"],
+      "env": {
+        "TABLEAU_DATA_DIR": "${TABLEAU_DATA_DIR:-data}"
+      }
+    }
+  }
+}
+```
+
+Windows 側の Claude Code から使う場合は、`command` を `<clone先>/.venv/Scripts/python.exe` にします。
+
+`TABLEAU_DATA_DIR` を相対パス（`data`）のままにすると、**そのプロジェクトの `data/` を読みます**（リポジトリ直下で `claude` を起動する前提）。別の場所を読ませたいときは絶対パスを書きます。
+`${VAR:-既定値}` の展開は Claude Code 固有です。ほかの MCP クライアントに渡す設定は、値を直接書いた `examples/mcp-config.json` を使ってください。
+
+#### B-2. スキルを置く
+
+コピー先が変わるだけで、あとは A-2 と同じです。
+
+**WSL / Linux / macOS**
+
+```bash
+mkdir -p <対象リポジトリ>/.claude/skills
+cd <対象リポジトリ>/.claude
+cp -r <clone先>/.claude/skills/{tableau-analysis,mcp-local-server} skills/
+```
+
+**Windows（PowerShell）**
+
+```powershell
+New-Item -ItemType Directory -Force "<対象リポジトリ>\.claude\skills" | Out-Null
+cd "<対象リポジトリ>\.claude"
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\tableau-analysis" skills\
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\mcp-local-server" skills\
+```
+
+リポジトリで共有するなら、`.mcp.json` と `.claude/skills/` をコミットします。
+
+#### B-3. 承認する
+
+`.mcp.json` は置いただけでは有効になりません。対象リポジトリ直下で `claude` を起動し、プロジェクトの MCP サーバを使うか聞かれたら承認します。承認するまで `⏸ Pending approval` のままで tool を呼べません。
+
+### 外から使うときの注意
+
+- **`pip install -e` が済んでいることが前提です。** `-m experiments.tableau_local.server` がどの作業ディレクトリからでも起動できるのは、editable install で `sys.path` に登録されているためです。clone しただけでは起動しません（先に[導入](#1-clone-してセットアップ)を済ませてください）。
+- **venv を作り直すと、登録した全プロジェクトで壊れます。** 絶対パスで venv の Python を指しているためです。作り直したら登録し直してください。
+- **user スコープに入れると、どのプロジェクトの Claude Code からも `TABLEAU_DATA_DIR` の中身が読めます。** 機微なデータを置くディレクトリを指定しないでください。
+- **WSL と Windows の設定は別物です。** WSL の Claude Code は `/home/...` を、Windows の Claude Code は `C:/...` を見ます。両方で使うなら両方に登録します。
+- **user と project の両方に登録すると、`/mcp` に `Conflicting scopes` の警告が出ます。** 同じサーバでもパスの綴りが違えば警告されます。動作には影響しません。消すには片方を削除します（`claude mcp remove tableau-local -s user`）。
+- **設定を変えたら Claude Code を再起動します。** 起動中のセッションには反映されません。
 
 ---
 
@@ -236,6 +381,10 @@ data/                    ローカルデータ（Git 管理対象外）
 - **WSL2 Ubuntu 24.04 / Python 3.12.3** — 上記に加えて、Claude Code からの tool 呼び出し、ロック競合時のエラー、Windows 側へコピーした `.hyper` の読み取り
 
 Windows 側へコピーしたサンプルを Tableau Desktop 2026.2 で開き、3 行の値が MCP の戻り値と一致することを確認しています。
+
+[リポジトリの外から使う](#リポジトリの外から使う)の手順は、WSL2 側で user スコープ登録（`claude mcp add-json` → リポジトリ外で `✔ Connected`）とスキルのコピーまで確認しました。
+PowerShell 側は `Copy-Item` の上書き挙動と、ネイティブコマンドへ渡す JSON から引用符が落ちること（PowerShell 5.1）だけ実測しています。
+**Windows 版 Claude Code からの user スコープ接続は未確認です。**
 
 `tableau-analysis` スキルのワークブック生成まわりの記述は、Tableau Desktop 2026.2（Windows）での実測にもとづきます。
 **版が変われば構造も変わります。** 雛形は必ず対象環境で取り直してください。
