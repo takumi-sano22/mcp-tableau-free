@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tableau-local": {
+      "command": "${TABLEAU_MCP_PYTHON:-.venv/bin/python}",
+      "args": ["-m", "experiments.tableau_local.server"],
+      "env": {
+        "TABLEAU_DATA_DIR": "${TABLEAU_DATA_DIR:-data}"
+      }
+    }
+  }
+}
