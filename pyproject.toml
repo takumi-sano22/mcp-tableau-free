@@ -12,6 +12,8 @@ dependencies = ["mcp>=1.12,<2"]
 
 [project.optional-dependencies]
 tableau = ["tableauhyperapi>=0.0.20000,<0.1"]
+# skill 同梱の validate_twb.py（公式 XSD による .twb の構文検証）だけが使う
+twb = ["lxml>=5,<7"]
 
 [project.scripts]
 tableau-local-mcp = "experiments.tableau_local.server:main"

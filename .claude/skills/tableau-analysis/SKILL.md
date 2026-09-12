@@ -43,7 +43,7 @@ Tableau を使った分析を、AI 側で可能な限り自動化して進める
 | スクリプト | 用途 |
 | --- | --- |
 | `scripts/build_hyper.py` | CSV 群を型を明示して `.hyper` へ格納する |
-| `scripts/validate_twb.py` | 公式 XSD で `.twb` を構文検証する（**通っても開ける保証は無い**） |
+| `scripts/validate_twb.py` | 公式 XSD で `.twb` を構文検証する（**通っても開ける保証は無い**）。`lxml` が要る |
 | `scripts/build_workbook_from_template.py` | 実機の雛形を土台に `.twb` / `.twbx` を組み立てる**実装例**。先頭の設定ブロック（雛形のパス・列定義・シート定義）を対象に合わせて書き換えて使う。そのままでは動かない |
 
 ## 同梱アセット

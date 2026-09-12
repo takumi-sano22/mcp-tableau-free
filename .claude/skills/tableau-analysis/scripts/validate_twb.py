@@ -5,6 +5,8 @@
 （XSD を通ったワークブックが開けない例を実測している）。足切りとしてのみ使うこと。
 正しい構造は実機の出力から取る（references/workbook-generation.md）。
 
+lxml が要る（`pip install lxml`。このリポジトリでは `pip install -e ".[twb]"`）。
+
 使い方:
     python validate_twb.py <twb_2026.2.0.xsd> <target.twb>
 

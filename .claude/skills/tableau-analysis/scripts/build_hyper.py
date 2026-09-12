@@ -10,12 +10,14 @@ CSV のまま Tableau に読ませても動くが、型が推論任せになり�
 types.json を渡すと型を明示できる（推論より優先）。形式:
     {"<table>": {"<column>": "text|int|double|timestamp"}}
 渡さない場合は各列の値から推論する（全値が整数なら int、など）。
+データ行が 0 件の CSV でもテーブルは作る。その場合、型を指定しない列は text になる。
 """
 
 import csv
 import json
 import sys
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from tableauhyperapi import (Connection, CreateMode, HyperProcess, Inserter,
@@ -57,11 +59,19 @@ def convert(value, kind):
     if value is None or value == "":
         return None
     if kind == I:
+        # float を経由すると 2^53 を超える整数が黙って丸まるため、まず int で受ける。
+        try:
+            return int(value)
+        except ValueError:
+            pass
         # 整数列に小数が来たら黙って切り捨てず落とす（データが静かに壊れるのを防ぐ）。
-        f = float(value)
-        if f != int(f):
+        try:
+            d = Decimal(value)
+        except InvalidOperation:
+            raise ValueError("整数列に数値でない値が入っています: {!r}".format(value))
+        if d != d.to_integral_value():
             raise ValueError("整数列に小数が入っています: {!r}".format(value))
-        return int(f)
+        return int(d)
     if kind == D:
         return float(value)
     if kind == TS:
@@ -80,11 +90,14 @@ def main():
             for path in sorted(csv_dir.glob("*.csv")):
                 name = path.stem
                 with open(path, encoding="utf-8") as fh:
-                    rows = list(csv.DictReader(fh))
-                if not rows:
-                    print("skip(空):", name)
+                    reader = csv.DictReader(fh)
+                    header = reader.fieldnames or []
+                    rows = list(reader)
+                if not header:
+                    print("skip(ヘッダ無し):", name)
                     continue
-                header = list(rows[0].keys())
+                # 0 行でもテーブルは作る。テーブルごと無いと Tableau 側で参照先が消え、
+                # 「0 件だった」ことを描けなくなる（references/data-handoff.md）。
                 kinds = {c: overrides.get(name, {}).get(c) or infer([r[c] for r in rows])
                          for c in header}
                 table = TableDefinition(

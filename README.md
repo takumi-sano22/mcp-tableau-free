@@ -115,7 +115,7 @@ Tableau で分析するときに AI が踏みがちな落とし穴を、先回�
 | script / asset | 用途 |
 | --- | --- |
 | `scripts/build_hyper.py` | CSV 群を型を明示して `.hyper` に格納する |
-| `scripts/validate_twb.py` | 公式 XSD で `.twb` を構文検証する |
+| `scripts/validate_twb.py` | 公式 XSD で `.twb` を構文検証する（`lxml` が要る。`pip install -e ".[twb]"`） |
 | `scripts/build_workbook_from_template.py` | 雛形を土台にワークブックを組み立てる実装例（要編集） |
 | `assets/ref-dashboard-2026.2.twb` | Tableau 2026.2 が実際に書き出した `.twb`（構造の参照用） |
 
