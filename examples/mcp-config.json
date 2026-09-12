@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tableau-local": {
+      "command": "C:/path/to/mcp-tool-use-sandbox/.venv/Scripts/python.exe",
+      "args": ["-m", "experiments.tableau_local.server"],
+      "env": {
+        "TABLEAU_DATA_DIR": "C:/path/to/mcp-tool-use-sandbox/data"
+      }
+    }
+  }
+}
