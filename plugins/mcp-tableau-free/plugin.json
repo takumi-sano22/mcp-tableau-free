@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "mcp-tableau-free",
+  "version": "0.1.0",
+  "description": "ローカルのTableau Hyperデータを安全に確認し、Tableau分析の進め方を支援するSkill集。"
+}

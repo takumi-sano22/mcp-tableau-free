@@ -1,0 +1,32 @@
+{
+  "name": "mcp-tableau-free",
+  "version": "0.1.0",
+  "description": "ローカルのTableau Hyperデータを安全に確認し、Tableau分析の進め方を支援するSkill集。",
+  "author": {
+    "name": "takumi-sano22",
+    "url": "https://github.com/takumi-sano22"
+  },
+  "homepage": "https://github.com/takumi-sano22/mcp-tableau-free",
+  "repository": "https://github.com/takumi-sano22/mcp-tableau-free",
+  "keywords": [
+    "tableau",
+    "hyper",
+    "mcp",
+    "chatgpt-work"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tableau Local",
+    "shortDescription": "ローカルHyperの確認とTableau分析を支援",
+    "longDescription": "Secure MCP Tunnel経由の読み取り専用MCPと、Tableau分析・データ受け渡し・ワークブック設計のSkillを組み合わせます。",
+    "developerName": "takumi-sano22",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "sample.hyperのテーブルと先頭行を確認して",
+      "このデータをTableauで分析する進め方を考えて"
+    ]
+  }
+}
