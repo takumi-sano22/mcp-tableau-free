@@ -104,7 +104,7 @@ Tableau Desktopでファイルを開いている間はMCPから読めず、逆�
 同じサンプルをTableauで確認するときは、コピーを開くと競合しません。WSLのファイルをWindowsのTableauで開く場合は、次のようにコピーします。
 
 ```bash
-# WSL側で実行。<Windowsユーザー名>は自分の環境に合わせる
+# WSL側で、リポジトリ直下から実行する。<Windowsユーザー名>は自分の環境に合わせる
 cp data/sample.hyper /mnt/c/Users/<Windowsユーザー名>/Desktop/sample_tableau.hyper
 ```
 
