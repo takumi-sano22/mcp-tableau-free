@@ -30,7 +30,25 @@ Tableau向けの小さなローカル実験から始め、ほかのMCP・tool us
 - 行プレビューの戻り値だけでは、返った行数が全件か上限かを区別できない。件数を返す手段があると比較しやすい
 - Windows側へコピーしたサンプルをTableau Desktopで開けば、MCPの戻り値と同じ3行を並べて確認できる
 
-## 3. ローカルTableau資産への拡張
+## 3. MCPクライアント比較
+
+- [x] ChatGPT Work向けの公式接続方式を確認する
+- [x] Secure MCP Tunnelがローカルstdio MCPへ接続できることを確認し、HTTP化の要否を判断する
+- [x] 認証情報とHyperファイルを公開せずに接続する手順をREADMEへ記録する
+- [ ] ローカルWindowsでTunnelを起動し、ChatGPT Workから3つのtoolを呼ぶ
+- [ ] `sample.hyper`の東京1200・大阪900・福岡600をChatGPT Workの戻り値で確認する
+
+完了の目安：Claude CodeとChatGPT Workの両方から、同じstdio MCPと同じサンプルデータを読み取れる。
+
+2026-09-12の確認でわかったことです。
+
+- ChatGPT Workで非公開のローカルMCPを使う標準経路はSecure MCP Tunnelで、`tunnel-client`からローカルMCPへstdioまたはHTTPで接続できる
+- Tunnelは外向きHTTPSで接続するため、ローカルMCPの受信ポート開放や認証なしの外部公開は不要
+- このサーバはstdioのままTunnelへ接続できるため、FastMCPのHTTPトランスポート追加は不要。Claude Code向けの`.mcp.json`と起動方式も変更しない
+- ChatGPT Workの管理された作業環境内では、独立したMCPクライアントからのstdio接続、3 toolの検出、`list_hyper_files`呼び出しまでは確認できた
+- 同環境ではHyperプロセスのローカルソケット作成が拒否されたため、サンプル生成、Hyper読み取り、Windows上のTunnel起動、ChatGPT WorkからのE2E呼び出しは未確認。推測で完了扱いにしない
+
+## 4. ローカルTableau資産への拡張
 
 - [ ] `.twb`からデータソース・シート構成を読む実験
 - [ ] `.twbx`の内容を安全に確認する実験
@@ -38,7 +56,7 @@ Tableau向けの小さなローカル実験から始め、ほかのMCP・tool us
 
 画面操作やワークブックへの書き込みは別実験として扱い、必要性を確認してから着手する。
 
-## 4. Tableau以外へ広げる
+## 5. Tableau以外へ広げる
 
 - [ ] ローカルCSVやファイル検索など、次の題材を一つ選ぶ
 - [ ] 同じ処理をMCP経由と直接のtool useで比較する
