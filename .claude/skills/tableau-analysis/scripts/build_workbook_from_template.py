@@ -4,7 +4,7 @@
 **そのままでは動かない。** 下の「設定」を対象のデータ・雛形に合わせて書き換えて使う。
 汎用ツールではなく、references/workbook-generation.md の手順をコードに落とした参照実装。
 
-公式 XSD を通しても Tableau が開かない（読み込み時の content model が別）ことを実測したため、
+公式 XSD を通しても Tableau は開かない（読み込み時の content model が別）ことを実測したため、
 骨格（document-format-change-manifest / preferences / datasources）は実機が書いた雛形から取り、
 worksheets 以降だけを生成する。使う XML 構文も雛形に出現したものに限る。
 
@@ -32,11 +32,14 @@ REF = Path("/mnt/c/Users/<user>/Documents/<workdir>/ref-dash.twb")
 # 生成対象のテーブル。雛形で接続したテーブルと同じ名前にする。
 TABLE = "axis_scores"
 
+# シート内に出るデータソースの表示名。雛形の綴りに合わせる（Tableau の言語設定で変わる）。
+DS_CAPTION = "{} 抽出".format(TABLE)
+
 # 列定義の approx-count を数えるための CSV（.hyper の元データ）。
 CSV_PATH = Path("/tmp/<workdir>/axis_scores.csv")
 
 # .twbx へ同梱する .hyper の実体。
-HYPER = Path("/home/ai/project/mcp-tableau-free/data/sample_quality.hyper")
+HYPER = Path("/home/<user>/<workdir>/sample_quality.hyper")
 
 # .twbx 内でのデータソースのパス（この綴りで固定）。
 HYPER_IN_ZIP = "Data/Datasources/sample_quality.hyper"
@@ -56,8 +59,9 @@ COLUMNS = [
 
 DASH_NAME = "ダッシュボード"
 
-# シート定義。filters は (列名, 値) の単一値フィルタだけを使う。
-# 複数値フィルタの XML は雛形に出ないことが多いため、絞り込みは列を足してデータ側で解決する
+# シート定義。枚数は自由（ダッシュボードは 2 列で折り返す）。
+# filters は (列名, 値) の単一値フィルタだけを使う。複数値フィルタの XML は雛形に出ないことが
+# 多いため、絞り込みは列を足してデータ側で解決する
 # （references/workbook-generation.md「未検証の構文を避ける設計」）。
 SHEETS = [
     dict(name="① 主要指標の推移", mark="Line",
@@ -85,13 +89,30 @@ TYPE_MAP = {"string": ("129", "string", "Count", True),
 ROLE_MAP = {"string": ("dimension", "nominal"), "integer": ("measure", "quantitative"),
             "real": ("measure", "quantitative")}
 
+# ダッシュボードの座標系。雛形と同じく全体を 100000 とする相対値で、外周に余白を取る。
+GRID_COLS = 2
+AREA_X, AREA_Y, AREA_W, AREA_H = 483, 851, 99034, 98298
+
 
 def q(t):
+    """設定値を XML の属性・テキストへ入れる前に必ず通す。"""
     return escape(str(t), {'"': "&quot;", "'": "&apos;"})
 
 
 def quuid():
     return "{" + str(uuid.uuid4()).upper() + "}"
+
+
+def sub1(pattern, replacement, text, **kw):
+    """置換が1件も起きなかったら落とす。
+
+    雛形の綴りが想定と違うと、re.sub は黙って無変換のまま通してしまい、
+    古い列定義を含んだファイルが出力される。ここで気づけるようにする。
+    """
+    new, n = re.subn(pattern, lambda _m: replacement, text, count=1, **kw)
+    if n != 1:
+        sys.exit("雛形の構造が想定と違います（置換できませんでした）: {}".format(pattern))
+    return new
 
 
 if not REF.is_file():
@@ -102,8 +123,17 @@ if not REF.is_file():
 ref = REF.read_text(encoding="utf-8")
 DS = re.search(r"name='(federated\.[a-z0-9]+)'", ref).group(1)
 OBJ_ID = re.search(r"<object-id>(.*?)</object-id>", ref).group(1)
+# windows タグの属性（DPI・高さ）は実機依存なので、雛形のものをそのまま使う。
+WINDOWS_ATTRS = re.search(r"<windows([^>]*)>", ref).group(1).strip()
 
-# 列ごとのユニーク件数。metadata の approx-count に入れる（Tableau が後で更新する統計値）。
+# zone の id は重複しなければよい。雛形と同じく 3 から順に振る。
+GRID_ROWS = [SHEETS[i:i + GRID_COLS] for i in range(0, len(SHEETS), GRID_COLS)]
+_ids = iter(range(3, 3 + (len(SHEETS) + len(GRID_ROWS) + 4) * 3, 3))
+SHEET_IDS = [next(_ids) for _ in SHEETS]
+ROW_IDS = [next(_ids) for _ in GRID_ROWS]
+OUTER_ID, VERT_ID, PHONE_OUTER_ID, PHONE_VERT_ID = (next(_ids) for _ in range(4))
+
+# 列ごとのユニーク件数。metadata の approx-count に入れる（Tableau が接続時に更新する統計値）。
 with open(CSV_PATH, encoding="utf-8") as fh:
     rows_csv = list(csv.DictReader(fh))
 APPROX = {c: len({r[c] for r in rows_csv if r[c] != ""}) for c, _, _ in COLUMNS}
@@ -126,7 +156,7 @@ def metadata_records():
             <approx-count>{ac}</approx-count>
             <contains-null>true</contains-null>
 {col}            <object-id>{oid}</object-id>
-          </metadata-record>""".format(n=name, rt=rt, o=i, lt=lt, agg=agg, tbl=TABLE,
+          </metadata-record>""".format(n=q(name), rt=rt, o=i, lt=lt, agg=agg, tbl=q(TABLE),
                                        ac=APPROX[name], col=collation, oid=OBJ_ID))
     return "        <metadata-records>\n" + "\n".join(out) + "\n        </metadata-records>"
 
@@ -137,7 +167,7 @@ def column_defs():
     for name, caption, kind in sorted(COLUMNS, key=lambda c: c[1]):
         role, typ = ROLE_MAP[kind]
         out.append("      <column caption='{cap}' datatype='{dt}' name='[{n}]' role='{r}' type='{t}' />".format(
-            cap=caption, dt=kind, n=name, r=role, t=typ))
+            cap=q(caption), dt=kind, n=q(name), r=role, t=typ))
     return "\n".join(out)
 
 
@@ -145,7 +175,7 @@ def inst(field, deriv="None"):
     """雛形に出てくる内部フィールド名の綴り。離散は nk、集計は qk。"""
     pre = {"None": "none", "Sum": "sum"}[deriv]
     kind = "qk" if deriv == "Sum" else "nk"
-    return "[{}:{}:{}]".format(pre, field, kind)
+    return "[{}:{}:{}]".format(pre, q(field), kind)
 
 
 def deps_and_filters(fields, filters):
@@ -156,12 +186,13 @@ def deps_and_filters(fields, filters):
     for f, deriv in sorted(fields.items()):
         role, typ = ROLE_MAP[kinds[f]]
         decls.append("            <column caption='{c}' datatype='{d}' name='[{f}]' role='{r}' type='{t}' />".format(
-            c=caption[f], d=kinds[f], f=f, r=role, t=typ))
+            c=q(caption[f]), d=kinds[f], f=q(f), r=role, t=typ))
         it = "quantitative" if deriv == "Sum" else "nominal"
         decls.append("            <column-instance column='[{f}]' derivation='{d}' name='{i}' pivot='key' type='{t}' />".format(
-            f=f, d=deriv, i=inst(f, deriv), t=it))
+            f=q(f), d=deriv, i=inst(f, deriv), t=it))
     filt, slices = [], []
     for f, value in filters:
+        # member は値を " で囲んだうえで、XML 属性としてもエスケープする（二重の引用）。
         filt.append("""          <filter class='categorical' column='[{ds}].{i}'>
             <groupfilter function='member' level='{i}' member='&quot;{v}&quot;' user:ui-domain='database' user:ui-enumeration='inclusive' user:ui-marker='enumerate' />
           </filter>""".format(ds=DS, i=inst(f), v=q(value)))
@@ -182,7 +213,7 @@ def worksheet(s):
       <table>
         <view>
           <datasources>
-            <datasource caption='{tbl} 抽出' name='{ds}' />
+            <datasource caption='{cap}' name='{ds}' />
           </datasources>
           <datasource-dependencies datasource='{ds}'>
 {decls}
@@ -207,75 +238,74 @@ def worksheet(s):
       </table>
       <simple-id uuid='{uid}' />
     </worksheet>""".format(name=q(s["name"]), ds=DS, decls=decls, filt=filt, slices=slices,
-                           mark=s["mark"], tbl=TABLE, color=inst(s["color"]),
+                           mark=s["mark"], cap=q(DS_CAPTION), color=inst(s["color"]),
                            rows=inst(s["rows"], "Sum"), cols=inst(s["cols"]), uid=quuid())
 
 
-ZONE_STYLE = """                <zone-style>
+def zone_style(margin):
+    return """<zone-style>
                   <format attr='border-color' value='#000000' />
                   <format attr='border-style' value='none' />
                   <format attr='border-width' value='0' />
-                  <format attr='margin' value='4' />
-                </zone-style>"""
+                  <format attr='margin' value='{}' />
+                </zone-style>""".format(margin)
 
 
 def dashboard():
-    # 2行×2列。外側 basic → 縦 flow → 横 flow 2本、という雛形と同じ入れ子にする。
-    ids = [3, 9, 12, 15]
+    # 外側 basic → 縦 flow → 横 flow（1行ぶん）、という雛形と同じ入れ子にする。
+    # シート枚数は自由。2 列で折り返し、最後の行が1枚なら横幅いっぱいに広げる。
+    row_h = AREA_H // len(GRID_ROWS)
     rows_xml = []
-    for r in (0, 1):
+    for r, row in enumerate(GRID_ROWS):
+        cell_w = AREA_W // len(row)
+        y = AREA_Y + r * row_h
         cells = []
-        for c in (0, 1):
-            i = r * 2 + c
-            cells.append("""              <zone h='49149' id='{id}' name='{name}' w='49517' x='{x}' y='{y}'>
-{style}
-              </zone>""".format(id=ids[i], name=q(SHEETS[i]["name"]),
-                                x=483 + c * 49517, y=851 + r * 49149, style=ZONE_STYLE))
-        rows_xml.append("""            <zone h='49149' id='{id}' param='horz' type-v2='layout-flow' w='99034' x='483' y='{y}'>
+        for c, s in enumerate(row):
+            cells.append("""              <zone h='{h}' id='{id}' name='{name}' w='{w}' x='{x}' y='{y}'>
+                {style}
+              </zone>""".format(h=row_h, id=SHEET_IDS[r * GRID_COLS + c], name=q(s["name"]),
+                                w=cell_w, x=AREA_X + c * cell_w, y=y, style=zone_style(4)))
+        rows_xml.append("""            <zone h='{h}' id='{id}' param='horz' type-v2='layout-flow' w='{w}' x='{x}' y='{y}'>
 {cells}
-            </zone>""".format(id=20 + r, y=851 + r * 49149, cells="\n".join(cells)))
+            </zone>""".format(h=row_h, id=ROW_IDS[r], w=AREA_W, x=AREA_X, y=y,
+                              cells="\n".join(cells)))
+    # Phone レイアウトは縦一列。高さは枚数で等分する。
+    phone_h = AREA_H // len(SHEETS)
     phone = []
     for i, s in enumerate(SHEETS):
-        phone.append("""                <zone fixed-size='280' h='24574' id='{id}' is-fixed='true' name='{name}' w='99034' x='483' y='{y}'>
-{style}
-                </zone>""".format(id=ids[i], name=q(s["name"]), y=851 + i * 24574, style=ZONE_STYLE))
+        phone.append("""                <zone fixed-size='280' h='{h}' id='{id}' is-fixed='true' name='{name}' w='{w}' x='{x}' y='{y}'>
+                {style}
+                </zone>""".format(h=phone_h, id=SHEET_IDS[i], name=q(s["name"]), w=AREA_W,
+                                  x=AREA_X, y=AREA_Y + i * phone_h, style=zone_style(4)))
     return """    <dashboard enable-sort-zone-taborder='true' name='{dash}'>
       <style />
       <size sizing-mode='automatic' />
       <zones>
-        <zone h='100000' id='4' type-v2='layout-basic' w='100000' x='0' y='0'>
-          <zone h='98298' id='7' param='vert' type-v2='layout-flow' w='99034' x='483' y='851'>
+        <zone h='100000' id='{outer}' type-v2='layout-basic' w='100000' x='0' y='0'>
+          <zone h='{ah}' id='{vert}' param='vert' type-v2='layout-flow' w='{aw}' x='{ax}' y='{ay}'>
 {rows}
           </zone>
-          <zone-style>
-            <format attr='border-color' value='#000000' />
-            <format attr='border-style' value='none' />
-            <format attr='border-width' value='0' />
-            <format attr='margin' value='8' />
-          </zone-style>
+          {style}
         </zone>
       </zones>
       <devicelayouts>
         <devicelayout auto-generated='true' name='Phone'>
           <size maxheight='700' minheight='700' sizing-mode='vscroll' />
           <zones>
-            <zone h='100000' id='31' type-v2='layout-basic' w='100000' x='0' y='0'>
-              <zone h='98298' id='30' param='vert' type-v2='layout-flow' w='99034' x='483' y='851'>
+            <zone h='100000' id='{pouter}' type-v2='layout-basic' w='100000' x='0' y='0'>
+              <zone h='{ah}' id='{pvert}' param='vert' type-v2='layout-flow' w='{aw}' x='{ax}' y='{ay}'>
 {phone}
               </zone>
-              <zone-style>
-                <format attr='border-color' value='#000000' />
-                <format attr='border-style' value='none' />
-                <format attr='border-width' value='0' />
-                <format attr='margin' value='8' />
-              </zone-style>
+              {style}
             </zone>
           </zones>
         </devicelayout>
       </devicelayouts>
       <simple-id uuid='{uid}' />
-    </dashboard>""".format(dash=q(DASH_NAME), rows="\n".join(rows_xml),
-                           phone="\n".join(phone), uid=quuid())
+    </dashboard>""".format(dash=q(DASH_NAME), rows="\n".join(rows_xml), phone="\n".join(phone),
+                           outer=OUTER_ID, vert=VERT_ID, pouter=PHONE_OUTER_ID,
+                           pvert=PHONE_VERT_ID, ah=AREA_H, aw=AREA_W, ax=AREA_X, ay=AREA_Y,
+                           style=zone_style(8), uid=quuid())
 
 
 def windows():
@@ -316,25 +346,25 @@ def windows():
       <viewpoints>
 {vps}
       </viewpoints>
-      <active id='3' />
+      <active id='{active}' />
       <simple-id uuid='{uid}' />
-    </window>""".format(dash=q(DASH_NAME), vps=vps, uid=quuid()))
+    </window>""".format(dash=q(DASH_NAME), vps=vps, active=SHEET_IDS[0], uid=quuid()))
     return "\n".join(out)
 
 
 def build(dbname):
     # 骨格は雛形の datasources 終わりまでを流用し、それ以降は作り直す。
     head = ref[:ref.index("  </datasources>") + len("  </datasources>")]
-    head = re.sub(r"dbname='[^']*'", "dbname='{}'".format(dbname), head)
-    head = re.sub(r"        <metadata-records>.*?</metadata-records>",
-                  metadata_records(), head, flags=re.S)
+    head = sub1(r"dbname='[^']*'", "dbname='{}'".format(q(dbname)), head)
+    head = sub1(r"        <metadata-records>.*?</metadata-records>",
+                metadata_records(), head, flags=re.S)
     # 列定義（datasource 直下の column 群）も追加列を含む形に差し替える。
-    head = re.sub(r"      <column caption='[^']*' datatype='[^']*' name='\[[a-z_]+\]' role='[^']*' type='[^']*' />\n"
-                  r"(?:      <column caption='[^']*' datatype='[^']*' name='\[[a-z_]+\]' role='[^']*' type='[^']*' />\n)*",
-                  column_defs() + "\n", head, count=1)
-    return "{head}\n  <worksheets>\n{ws}\n  </worksheets>\n  <dashboards>\n{dash}\n  </dashboards>\n  <windows saved-dpi-scale-factor='1.25' source-height='37'>\n{win}\n  </windows>\n</workbook>\n".format(
+    head = sub1(r"      <column caption='[^']*' datatype='[^']*' name='\[[^\]]+\]' role='[^']*' type='[^']*' />\n"
+                r"(?:      <column caption='[^']*' datatype='[^']*' name='\[[^\]]+\]' role='[^']*' type='[^']*' />\n)*",
+                column_defs() + "\n", head)
+    return "{head}\n  <worksheets>\n{ws}\n  </worksheets>\n  <dashboards>\n{dash}\n  </dashboards>\n  <windows {wattrs}>\n{win}\n  </windows>\n</workbook>\n".format(
         head=head, ws="\n".join(worksheet(s) for s in SHEETS),
-        dash=dashboard(), win=windows())
+        dash=dashboard(), win=windows(), wattrs=WINDOWS_ATTRS)
 
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)

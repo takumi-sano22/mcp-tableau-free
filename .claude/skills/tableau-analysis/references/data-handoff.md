@@ -46,8 +46,9 @@ Tableau 側でフィルタできるようになり、元のサマリと数字が
 CSV のまま Tableau に読ませても動くが、型が推論任せになり数値が文字列に落ちることがある。
 集計軸と並び順に使う列だけは型を明示して `.hyper` に入れる。
 
-`scripts/build_hyper.py` を使う。テーブルごとに列と型（text / int / double / timestamp）を
-定義し、CSV のヘッダと定義が一致しているか検証してから格納する。
+`scripts/build_hyper.py` を使う。型は各列の値から推論し、`types.json` を渡せばテーブル・列
+単位で明示できる（text / int / double / timestamp）。CSV に無い列を指定した場合や未知の型名は
+エラーになるので、定義とヘッダのずれはその場で分かる。
 
 ```bash
 python scripts/build_hyper.py <csv_dir> <out.hyper>

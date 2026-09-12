@@ -16,7 +16,7 @@ Tableau Cloud / Server は使いません。すべて手元のファイルで完
 
 - **Tableau の無料版が PC にインストール済み**であること（`.hyper` を開いて中身を確認するために使います）
 - 64 ビット版 Python 3.11〜3.14
-- Claude Code または Claude Cowork（ChatGPT Work からも使えます。[後述](#chatgpt-work-から使う)）
+- Claude Code（Claude Cowork・ChatGPT Work からも使えるはずですが、[動作確認](#動作確認済み環境)は Claude Code だけです）
 
 WSL で作業する場合、Tableau 本体は Windows 側のままで構いません。ファイルの受け渡しだけ気をつけます。
 
@@ -26,7 +26,7 @@ WSL で作業する場合、Tableau 本体は Windows 側のままで構いま�
 
 ### 1. clone してセットアップ
 
-**WSL / Linux / macOS**
+**WSL / Linux / macOS**（動作確認は WSL2 のみ）
 
 ```bash
 git clone https://github.com/takumi-sano22/mcp-tableau-free.git
@@ -62,7 +62,14 @@ claude
 
 承認するまでは `Pending approval` のままで tool を呼べません。`.mcp.json` を変更したときは Claude Code を再起動します。
 
-別の場所から起動したい場合は、次の環境変数を絶対パスで指定します。
+**Windows では、起動前に Python の場所を指定してください。** 既定値は WSL / macOS 向けの綴りなので、そのままでは起動できません。
+
+```powershell
+$env:TABLEAU_MCP_PYTHON = ".venv\Scripts\python.exe"
+claude
+```
+
+設定は次の2つです。リポジトリ直下以外から起動する場合は、両方を絶対パスで指定します。
 
 | 環境変数 | 既定値 | 用途 |
 | --- | --- | --- |
@@ -117,7 +124,7 @@ Tableau で分析するときに AI が踏みがちな落とし穴を、先回�
 | `scripts/build_hyper.py` | CSV 群を型を明示して `.hyper` に格納する |
 | `scripts/validate_twb.py` | 公式 XSD で `.twb` を構文検証する（`lxml` が要る。`pip install -e ".[twb]"`） |
 | `scripts/build_workbook_from_template.py` | 雛形を土台にワークブックを組み立てる実装例（要編集） |
-| `assets/ref-dashboard-2026.2.twb` | Tableau 2026.2 が実際に書き出した `.twb`（構造の参照用） |
+| `assets/ref-dashboard-2026.2.twb` | Tableau 2026.2 が実際に書き出した `.twb`（構造の参照用。識別子・パス・値は伏せてあります） |
 
 **このスキルの一番大事な主張**は「ワークブックの XML を推測で書かない」ことです。
 Tableau のワークブック形式は公開仕様（公式 XSD）と実装が食い違い、**XSD を通ったファイルが Tableau で開けない**ことを実測しています。
@@ -147,7 +154,7 @@ Tableau にはワークブックを書き出す公式のローカル API がな�
 **使っていない API**（無料版のローカル運用では不要、または使えません）
 
 - Tableau REST API / Metadata API / VizQL Data Service — Tableau Cloud / Server 向け
-- Extensions API / Embedding API — ダッシュボード埋め込み向け
+- Extensions API（ダッシュボードに外部 Web アプリを載せる）/ Embedding API（viz を外部サイトに載せる）— どちらも埋め込み向け
 - Tableau Server Client（`tableauserverclient`）— 発行先のサーバが必要
 
 Hyper API はローカルで `hyperd` プロセスを起動して動きます。実行すると作業ディレクトリに `hyperd.log` ができます（`.gitignore` 済み）。

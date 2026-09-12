@@ -59,7 +59,7 @@ claude mcp add --scope user <server-name> \
 
 ただし展開はあくまで Claude Code の機能であり、MCP の仕様ではない。ほかのクライアント向けの設定例を同梱する場合は、値を直接書いた別ファイルを用意すること。
 
-ChatGPT Work からローカルの stdio サーバを使う場合は、OpenAI の [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) を経由する。`tunnel-client` が外向き HTTPS で接続してローカル MCP へ転送するため、**サーバを HTTP 化する必要も、受信ポートを開ける必要もない**。stdio のまま共用できる。
+ChatGPT Work からローカルの stdio サーバを使う場合は、OpenAI の [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) を経由する。`tunnel-client` が外向き HTTPS で接続してローカル MCP へ転送するため、**サーバを HTTP 化する必要も、受信ポートを開ける必要もない**とされている。ただし**エンドツーエンドの動作は未確認**で、確認済みなのは Claude Code からの経路だけ。案内するときは未確認である旨を添える。
 
 相対パスを既定値にした場合、**リポジトリ直下で `claude` を起動する前提**になる。README等にその前提を明記する。
 

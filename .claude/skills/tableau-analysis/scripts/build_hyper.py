@@ -98,8 +98,18 @@ def main():
                     continue
                 # 0 行でもテーブルは作る。テーブルごと無いと Tableau 側で参照先が消え、
                 # 「0 件だった」ことを描けなくなる（references/data-handoff.md）。
-                kinds = {c: overrides.get(name, {}).get(c) or infer([r[c] for r in rows])
-                         for c in header}
+                given = overrides.get(name, {})
+                # 型定義とヘッダのずれは黙って無視せず落とす（指定したつもりの型が
+                # 効かないまま格納されるのが、いちばん気づきにくい壊れ方のため）。
+                unknown_cols = sorted(set(given) - set(header))
+                if unknown_cols:
+                    raise SystemExit("{} に無い列が types.json にあります: {}".format(
+                        path.name, ", ".join(unknown_cols)))
+                bad_kinds = sorted({k for k in given.values() if k not in SQL})
+                if bad_kinds:
+                    raise SystemExit("未知の型名です（{}）: {}".format(
+                        "/".join(SQL), ", ".join(bad_kinds)))
+                kinds = {c: given.get(c) or infer([r[c] for r in rows]) for c in header}
                 table = TableDefinition(
                     TableName("public", name),
                     [TableDefinition.Column(c, SQL[kinds[c]], NULLABLE) for c in header])
