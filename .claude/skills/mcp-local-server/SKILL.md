@@ -57,9 +57,31 @@ claude mcp add --scope user <server-name> \
 
 **`${VAR:-既定値}` の展開は Claude Code が行う。** この記法を使うと、個人環境の絶対パスをコミットせずに済み、必要な人だけ環境変数で上書きできる。
 
-ただし展開はあくまで Claude Code の機能であり、MCP の仕様ではない。ほかのクライアント（ChatGPT等）向けの設定例を同梱する場合は、値を直接書いた別ファイルを用意すること。
+ただし展開はあくまで Claude Code の機能であり、MCP の仕様ではない。ほかのクライアント向けの設定例を同梱する場合は、値を直接書いた別ファイルを用意すること。
+
+ChatGPT Work からローカルの stdio サーバを使う場合は、OpenAI の [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) を経由する。`tunnel-client` が外向き HTTPS で接続してローカル MCP へ転送するため、**サーバを HTTP 化する必要も、受信ポートを開ける必要もない**。stdio のまま共用できる。
 
 相対パスを既定値にした場合、**リポジトリ直下で `claude` を起動する前提**になる。README等にその前提を明記する。
+
+#### このリポジトリでの実例
+
+`mcp-tableau-free` の `.mcp.json` が、この形の実物。ローカルの `.hyper` を読む `tableau-local` サーバを project スコープで登録している。
+
+```json
+{
+  "mcpServers": {
+    "tableau-local": {
+      "command": "${TABLEAU_MCP_PYTHON:-.venv/bin/python}",
+      "args": ["-m", "experiments.tableau_local.server"],
+      "env": {
+        "TABLEAU_DATA_DIR": "${TABLEAU_DATA_DIR:-data}"
+      }
+    }
+  }
+}
+```
+
+既定値が相対パスなので、リポジトリ直下で `claude` を起動する。別の場所から使うなら、両方を絶対パスで上書きする。
 
 ---
 
@@ -160,3 +182,11 @@ env -u MY_PYTHON -u MY_DATA_DIR claude -p --mcp-config .mcp.json --strict-mcp-co
 - 未確認のこと: 試していない経路（別マシン、別クライアント等）
 
 コマンドを実行していないのに「使えます」と書かない。確認していない経路は未確認として残すこと。
+
+---
+
+## 置き場所
+
+このスキルの正本は [mcp-tableau-free](https://github.com/takumi-sano22/mcp-tableau-free) リポジトリにある。
+利用時は `~/.claude/skills/`（全プロジェクトで使う）か、対象リポジトリの `.claude/skills/`
+（そのリポジトリだけで使う）へコピーする。同名なら project 側が優先される。

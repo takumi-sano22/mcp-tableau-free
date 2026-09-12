@@ -3,9 +3,9 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp-tool-use-sandbox"
+name = "mcp-tableau-free"
 version = "0.1.0"
-description = "さまざまなMCP・tool useを試す個人用サンドボックス"
+description = "Tableau無料版と併用する、ローカルHyper用MCPサーバとTableau分析skill"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = ["mcp>=1.12,<2"]
