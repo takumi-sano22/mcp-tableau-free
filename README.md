@@ -141,7 +141,7 @@ Hyper APIは起動時の作業ディレクトリに`hyperd.log`を作ります�
 - WSL2 Ubuntu 24.04 / Python 3.12.3
   上記に加えて、Claude Codeからの3つのtool呼び出し、ロック競合時のエラー、Windows側へコピーしたHyperファイルの読み取り。
 
-Tableau Desktop本体でサンプルを開いて比較する手順は用意しましたが、GUI操作による確認は未実施です。
+Windows側へコピーしたサンプルをTableau Desktop 2026.2で開き、3行の値がMCPの戻り値と一致することを確認しました。承認後の`claude mcp list`が`tableau-local`を`Connected`と表示することも確認しています。
 
 ## 参考
 
