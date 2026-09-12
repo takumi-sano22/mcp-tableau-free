@@ -3,15 +3,17 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp-tool-use-sandbox"
+name = "mcp-tableau-free"
 version = "0.1.0"
-description = "さまざまなMCP・tool useを試す個人用サンドボックス"
+description = "Tableau無料版と併用する、ローカルHyper用MCPサーバとTableau分析skill"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = ["mcp>=1.12,<2"]
 
 [project.optional-dependencies]
 tableau = ["tableauhyperapi>=0.0.20000,<0.1"]
+# skill 同梱の validate_twb.py（公式 XSD による .twb の構文検証）だけが使う
+twb = ["lxml>=5,<7"]
 
 [project.scripts]
 tableau-local-mcp = "experiments.tableau_local.server:main"

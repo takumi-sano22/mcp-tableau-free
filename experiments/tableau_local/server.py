@@ -11,7 +11,7 @@ from tableauhyperapi import Connection, HyperException, HyperProcess, TableName,
 
 # 起動元による参照先の変化を避けるため、許可するデータ領域を起動時に確定する。
 DATA_DIR = Path(os.environ.get("TABLEAU_DATA_DIR", "data")).resolve()
-mcp = FastMCP("tableau-local-sandbox")
+mcp = FastMCP("tableau-local")
 
 
 def resolve_hyper_path(filename: str) -> Path:

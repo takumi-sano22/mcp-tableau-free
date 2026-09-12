@@ -1,154 +1,252 @@
-# MCP / Tool Use Sandbox
+# mcp-tableau-free
 
-さまざまなMCP・tool useを小さく試す、個人用の汎用サンドボックスです。
-最初の実験として、Windows上のTableau Desktop Free Editionと併用するローカルHyperファイル用MCPサーバを用意します。
+ローカルにインストールした **Tableau の無料版**を、AI（Claude Code など）から扱うための道具一式です。
+お金をかけずに、データの準備からワークブックの生成までを AI に任せることを目指しています。
 
-## 現在できること
+入っているものは2つです。
 
-- `.hyper`ファイルの一覧取得
-- Hyper APIによるスキーマ・テーブル一覧取得
-- テーブルの先頭行の取得（最大100行）
-- 架空の売上データを使ったサンプルHyperファイル生成
+1. **ローカル MCP サーバ** — `.hyper` ファイルの中身を AI から直接読めるようにします
+2. **スキル2つ** — Tableau 分析の進め方と、ローカル MCP の登録手順を AI に教えます
 
-このサーバはローカルのファイルを扱います。Tableau Desktopの画面操作、ワークブックの編集、Cloud / Serverへの接続は実装していません。
+Tableau Cloud / Server は使いません。すべて手元のファイルで完結します。
 
-## ディレクトリ構成
+---
 
-```text
-experiments/
-  tableau_local/          # 最初の実験：ローカルHyper用MCP
-    server.py
-examples/
-  create_sample_hyper.py  # 架空データの生成
-  mcp-config.json         # stdio接続設定例
-data/                    # ローカルデータ。Git管理対象外
-.mcp.json                # Claude Code用のプロジェクト接続設定
-README.md
-ROADMAP.md
-pyproject.toml
-```
+## 前提
 
-## Windowsでの実行
+- **Tableau の無料版が PC にインストール済み**であること（`.hyper` を開いて中身を確認するために使います）
+- 64 ビット版 Python 3.11〜3.14
+- Claude Code（Claude Cowork・ChatGPT Work からも使えるはずですが、[動作確認](#動作確認済み環境)は Claude Code だけです）
 
-64ビット版Python 3.11〜3.14を使います。以下はPowerShellで、リポジトリ直下から実行してください。
+WSL で作業する場合、Tableau 本体は Windows 側のままで構いません。ファイルの受け渡しだけ気をつけます。
 
-```powershell
-git clone https://github.com/takumi-sano22/mcp-tool-use-sandbox.git
-cd mcp-tool-use-sandbox
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[tableau]"
-.\.venv\Scripts\python.exe examples/create_sample_hyper.py
-$env:TABLEAU_DATA_DIR = (Resolve-Path data).Path
-.\.venv\Scripts\python.exe -m experiments.tableau_local.server
-```
+---
 
-privateリポジトリのcloneにはGitHub認証が必要です。仮想環境の有効化は不要です。
-サーバはstdio形式なので、単体起動時はMCPクライアントからの入力を待ちます。終了はCtrl+Cです。
+## 導入
 
-## WSLでの実行
+### 1. clone してセットアップ
 
-Claude CodeをWSLで使う場合は、WSL側にPython環境を作ります。Tableau DesktopはWindows側のままで構いません。
+**WSL / Linux / macOS**（動作確認は WSL2 のみ）
 
 ```bash
-git clone git@github.com:takumi-sano22/mcp-tool-use-sandbox.git
-cd mcp-tool-use-sandbox
+git clone https://github.com/takumi-sano22/mcp-tableau-free.git
+cd mcp-tableau-free
 python3 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[tableau]"
 ./.venv/bin/python examples/create_sample_hyper.py
 ```
 
-`tableauhyperapi`はLinux向けのwheelも配布されるため、WSL側でもそのまま動作します。
+**Windows（PowerShell）**
 
-### Claude Codeに接続
+```powershell
+git clone https://github.com/takumi-sano22/mcp-tableau-free.git
+cd mcp-tableau-free
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[tableau]"
+.\.venv\Scripts\python.exe examples/create_sample_hyper.py
+```
 
-リポジトリ直下の`.mcp.json`がプロジェクト単位の接続設定です。個人環境の絶対パスを含めないよう、既定値を相対パスにし、環境変数で上書きできるようにしています。
+仮想環境の有効化は不要です。`create_sample_hyper.py` は、架空の売上データを `data/sample.hyper` に作ります。
+実データなしで接続確認ができます。
+
+### 2. Claude Code に接続する
+
+リポジトリ直下の `.mcp.json` が接続設定です。**リポジトリ直下で `claude` を起動**してください（既定値が相対パスのため）。
+
+```bash
+claude
+```
+
+1. 起動時にプロジェクトの MCP サーバを使うか聞かれるので、承認する
+2. `claude mcp list` で `tableau-local` が `✔ Connected` になることを確認する
+
+承認するまでは `Pending approval` のままで tool を呼べません。`.mcp.json` を変更したときは Claude Code を再起動します。
+
+**Windows では、起動前に Python の場所を指定してください。** 既定値は WSL / macOS 向けの綴りなので、そのままでは起動できません。
+
+```powershell
+$env:TABLEAU_MCP_PYTHON = ".venv\Scripts\python.exe"
+claude
+```
+
+設定は次の2つです。リポジトリ直下以外から起動する場合は、両方を絶対パスで指定します。
 
 | 環境変数 | 既定値 | 用途 |
 | --- | --- | --- |
-| `TABLEAU_MCP_PYTHON` | `.venv/bin/python` | 起動するPython。Windowsでは`.venv\Scripts\python.exe`を指定する |
-| `TABLEAU_DATA_DIR` | `data` | 対象のデータディレクトリ |
+| `TABLEAU_MCP_PYTHON` | `.venv/bin/python` | 起動する Python。Windows では `.venv\Scripts\python.exe` |
+| `TABLEAU_DATA_DIR` | `data` | `.hyper` を探すディレクトリ |
 
-既定値は相対パスなので、リポジトリ直下で`claude`を起動してください。別の場所から起動する場合は、両方を絶対パスで指定します。
-`${VAR:-既定値}`という書き方の展開はClaude Codeが行います。ほかのクライアントに登録する場合は、`examples/mcp-config.json`のように値を直接指定してください。
+### 3. 動かしてみる
 
-初回はプロジェクトのMCP設定を承認する操作が必要です。
+Claude Code で、次の順に tool を呼ばせます。
 
-1. リポジトリ直下で`claude`を起動する
-2. プロジェクトのMCPサーバを使うか尋ねられたら承認する
-3. `claude mcp list`で`tableau-local`が`Connected`になることを確認する
+```
+sample.hyper の中身を見せて
+```
 
-承認するまでは`claude mcp list`に`Pending approval`と表示され、toolを呼べません。
-`.mcp.json`を追加・変更したときは、起動中のClaude Codeを再起動してください。
+| tool | 返るもの |
+| --- | --- |
+| `list_hyper_files()` | `sample.hyper` |
+| `list_hyper_tables(filename="sample.hyper")` | `Extract` / `Sales` |
+| `preview_hyper_table(filename="sample.hyper", schema="Extract", table="Sales", limit=10)` | 東京 1200・大阪 900・福岡 600 の3行 |
 
-### ほかのMCPクライアントに接続
+同じファイルを Tableau で開いて、値が一致することを確認できます（[Tableau との併用](#tableau-との併用)）。
 
-`examples/mcp-config.json`の`C:/path/to/...`を実際の絶対パスに置き換え、利用クライアントのMCP設定に登録します。
-これは`mcpServers`形式の設定例です。クライアントによって登録形式が異なる場合は、同じcommand・args・環境変数を指定してください。
+### 4. スキルを入れる
 
-### toolの呼び出し
-
-接続後、次の順でtoolを呼び出します。
-
-1. `list_hyper_files()` → `sample.hyper`が表示される
-2. `list_hyper_tables(filename="sample.hyper")` → `Extract` / `Sales`が表示される
-3. `preview_hyper_table(filename="sample.hyper", schema="Extract", table="Sales", limit=10)` → 東京1200、大阪900、福岡600の3行が返る
-
-行の並び順は保証しません。値は型の違いによる転送エラーを避けるため、文字列またはnullで返します。
-
-### Tableauとの併用
-
-Hyperファイルは読み取りだけでもプロセス間で排他されます。接続中のファイルへ別プロセスから接続すると、`The database file is locked by another process`で失敗することを確認しました。
-Tableau Desktopでファイルを開いている間はMCPから読めず、逆も同様です。この場合、toolは日本語でロック競合を知らせます。
-
-ファイルを開かない`list_hyper_files`は、占有中でも動作します。
-
-同じサンプルをTableauで確認するときは、コピーを開くと競合しません。WSLのファイルをWindowsのTableauで開く場合は、次のようにコピーします。
+このリポジトリの中で `claude` を起動する場合、`.claude/skills/` のスキルは**そのまま使えます**。
+ほかのプロジェクトでも使いたい場合は、ホームへコピーします。
 
 ```bash
-# WSL側で、リポジトリ直下から実行する。<Windowsユーザー名>は自分の環境に合わせる
+cp -r .claude/skills/tableau-analysis ~/.claude/skills/
+cp -r .claude/skills/mcp-local-server ~/.claude/skills/
+```
+
+Claude Code を再起動すると読み込まれます。会話の内容から自動で起動しますが、`/tableau-analysis` のように名前を指定しても呼べます。
+
+---
+
+## スキルの説明
+
+### `tableau-analysis` — Tableau 分析を AI 駆動で進める
+
+Tableau で分析するときに AI が踏みがちな落とし穴を、先回りで潰すためのスキルです。
+
+| reference | 内容 |
+| --- | --- |
+| `data-handoff.md` | データを `.hyper` へ渡す作法。long 形式・0 件の扱い・ファイルロック回避 |
+| `workbook-generation.md` | `.twb` / `.twbx` をコードから生成する手順と、実測した失敗の記録 |
+| `analysis-recipes.md` | 「何を見たいか」からシート構成を決める型 |
+| `official-sources.md` | 公式の仕様・操作手順の調べ方と、情報源の優先順位 |
+
+| script / asset | 用途 |
+| --- | --- |
+| `scripts/build_hyper.py` | CSV 群を型を明示して `.hyper` に格納する |
+| `scripts/validate_twb.py` | 公式 XSD で `.twb` を構文検証する（`lxml` が要る。`pip install -e ".[twb]"`） |
+| `scripts/build_workbook_from_template.py` | 雛形を土台にワークブックを組み立てる実装例（要編集） |
+| `assets/ref-dashboard-2026.2.twb` | Tableau 2026.2 が実際に書き出した `.twb`（構造の参照用。識別子・パス・値は伏せてあります） |
+
+**このスキルの一番大事な主張**は「ワークブックの XML を推測で書かない」ことです。
+Tableau のワークブック形式は公開仕様（公式 XSD）と実装が食い違い、**XSD を通ったファイルが Tableau で開けない**ことを実測しています。
+そのため、まず実機で雛形を1つ作ってもらい、その骨格を流用して生成します。
+
+プロジェクト固有の事情は `references/projects/<名前>/` に置きます。書き方は同ディレクトリの `README.md` にあります。
+
+### `mcp-local-server` — ローカル MCP の登録と確認
+
+stdio 形式の MCP サーバを Claude Code に登録し、**実際に tool を呼べるところまで**確認する手順です。
+スコープ（user / project / local）の選び方、承認と再起動の要否、繋がらないときの切り分け、`claude -p` を使った tool の実呼び出し検証を扱います。
+
+このリポジトリの `.mcp.json` は、このスキルが説明している project スコープの実例そのものです。
+
+---
+
+## 使っている Tableau の API
+
+| 使っているもの | 何に使うか |
+| --- | --- |
+| **[Tableau Hyper API](https://tableau.github.io/hyper-db/docs/)**（Python 版 `tableauhyperapi`） | `.hyper` の作成・テーブル定義・行の挿入・読み取り。MCP サーバとスクリプトの中心 |
+| **[Tableau Document Schemas](https://github.com/tableau/tableau-document-schemas)**（公式 XSD） | `.twb` の構文検証。**足切りにしか使えません**（通っても Tableau が開けないことがあります） |
+
+`.twb` / `.twbx` の生成は、公式 API ではなく**ファイル形式（XML / zip）を直接扱っています**。
+Tableau にはワークブックを書き出す公式のローカル API がないためです。だからこそ、実機の出力を正とする進め方をとっています。
+
+**使っていない API**（無料版のローカル運用では不要、または使えません）
+
+- Tableau REST API / Metadata API / VizQL Data Service — Tableau Cloud / Server 向け
+- Extensions API（ダッシュボードに外部 Web アプリを載せる）/ Embedding API（viz を外部サイトに載せる）— どちらも埋め込み向け
+- Tableau Server Client（`tableauserverclient`）— 発行先のサーバが必要
+
+Hyper API はローカルで `hyperd` プロセスを起動して動きます。実行すると作業ディレクトリに `hyperd.log` ができます（`.gitignore` 済み）。
+テレメトリは `DO_NOT_SEND_USAGE_DATA_TO_TABLEAU` で無効にしています。
+
+---
+
+## MCP サーバの tool
+
+| tool | 内容 |
+| --- | --- |
+| `list_hyper_files()` | データディレクトリ直下の `.hyper` 一覧 |
+| `list_hyper_tables(filename)` | スキーマ名とテーブル名の一覧 |
+| `preview_hyper_table(filename, schema, table, limit)` | 列名と先頭行（1〜100 行） |
+
+読み取り専用です。任意 SQL は受け付けず、`TABLEAU_DATA_DIR` の外は拒否します。
+値は型の違いによる転送エラーを避けるため、文字列か null で返します。行の並び順は保証しません。
+
+> **注意**: tool の戻り値は AI の会話に渡ります。機微なデータを置くディレクトリを指定しないでください。
+
+---
+
+## Tableau との併用
+
+**Hyper ファイルは読み取りだけでもプロセス間で排他されます。** Tableau で開いている間は MCP から読めず、逆も同様です
+（`The database file is locked by another process`）。この場合、tool は日本語でロック競合を知らせます。
+
+対処は簡単で、**Tableau に渡すのはコピーにする**ことです。
+
+```bash
+# WSL 側で、リポジトリ直下から実行する。<Windowsユーザー名> は自分の環境に合わせる
 cp data/sample.hyper /mnt/c/Users/<Windowsユーザー名>/Desktop/sample_tableau.hyper
 ```
 
-1. エクスプローラーでコピーした`sample_tableau.hyper`をダブルクリックする（またはTableau Desktopへドラッグ＆ドロップする）
-2. `Extract`スキーマの`Sales`テーブルを開く
-3. `region`と`sales`の3行（東京1200、大阪900、福岡600）を確認する
-4. `preview_hyper_table`の戻り値と突き合わせる
+コピーした `.hyper` をダブルクリック（または Tableau へドラッグ＆ドロップ）して、`Extract` スキーマの `Sales` テーブルを開きます。
+`\\wsl.localhost\<ディストリ名>\home\...` で WSL 上のファイルを直接開くこともできますが、ネットワークパス経由のロック挙動は未確認です。
 
-`\\wsl.localhost\<ディストリ名>\home\...`でWSL上のファイルを直接開くこともできますが、ネットワークパス経由でのロック挙動は未確認です。コピーの利用を勧めます。
+ファイルを開かない `list_hyper_files` は、占有中でも動きます。
 
-### そのほかの注意点
+---
 
-`TABLEAU_DATA_DIR`で対象ディレクトリを指定します。未指定時は起動時の作業ディレクトリの`data`です。
-toolは対象領域外のパスを拒否し、任意SQLは受け付けません。ローカルの信頼できるクライアントでの実験を想定しています。
-実データや認証情報をコミットせず、MCPの戻り値が接続先AIに渡ることを踏まえて利用してください。
+## ChatGPT Work から使う
 
-Hyper APIは起動時の作業ディレクトリに`hyperd.log`を作ります。`.gitignore`で除外済みです。
+OpenAI の [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) を経由すると、
+このサーバを ChatGPT Work からも呼べます。`tunnel-client` が外向き HTTPS で接続してローカルの stdio MCP へ転送するため、
+**サーバを HTTP 化する必要も、ポートを開ける必要もありません**。Claude Code 向けの起動方式をそのまま共用できます。
 
-## 実験を追加する
+手順は [#4](https://github.com/takumi-sano22/mcp-tableau-free/issues/4) で扱っています。
+**エンドツーエンドの動作は未確認**です。確認済みなのは Claude Code からの経路だけです。
 
-1. `experiments/<実験名>/`に独立したモジュールを追加する
-2. 目的・起動方法・必要な権限をそのディレクトリのREADMEに記載する
-3. 専用の依存ライブラリは`pyproject.toml`のoptional-dependenciesに追加する
-4. `ROADMAP.md`に結果と次に試すことを記録する
+ほかの MCP クライアントに登録する場合は、`examples/mcp-config.json` の `C:/path/to/...` を実際の絶対パスへ置き換えて使ってください
+（`.mcp.json` の `${VAR:-既定値}` という書き方は Claude Code 固有の展開です）。
 
-共通化は複数の実験で必要になった段階で行います。自動テストコードは初期構成に含めず、上記のサンプルで動作確認します。
+---
+
+## ディレクトリ構成
+
+```text
+.claude/skills/
+  tableau-analysis/      Tableau 分析スキル（reference・script・雛形）
+  mcp-local-server/      ローカル MCP の登録・確認スキル
+experiments/
+  tableau_local/
+    server.py            MCP サーバ本体
+examples/
+  create_sample_hyper.py 架空データの生成
+  mcp-config.json        ほかのクライアント向けの設定例
+data/                    ローカルデータ（Git 管理対象外）
+.mcp.json                Claude Code 用のプロジェクト接続設定
+```
+
+---
 
 ## 動作確認済み環境
 
-いずれも2026-09-12に、MCP SDK 1.30.0 / tableauhyperapi 0.0.26558で確認しました。
+2026-09-12 に、MCP SDK 1.30.0 / tableauhyperapi 0.0.26558 で確認しました。
 
-- Windows / Python 3.14.3
-  サンプル生成、stdio接続、3つのtool、対象外パスと行数上限の拒否。
-- WSL2 Ubuntu 24.04 / Python 3.12.3
-  上記に加えて、Claude Codeからの3つのtool呼び出し、ロック競合時のエラー、Windows側へコピーしたHyperファイルの読み取り。
+- **Windows / Python 3.14.3** — サンプル生成、stdio 接続、3 つの tool、対象外パスと行数上限の拒否
+- **WSL2 Ubuntu 24.04 / Python 3.12.3** — 上記に加えて、Claude Code からの tool 呼び出し、ロック競合時のエラー、Windows 側へコピーした `.hyper` の読み取り
 
-Windows側へコピーしたサンプルをTableau Desktop 2026.2で開き、3行の値がMCPの戻り値と一致することを確認しました。承認後の`claude mcp list`が`tableau-local`を`Connected`と表示することも確認しています。
+Windows 側へコピーしたサンプルを Tableau Desktop 2026.2 で開き、3 行の値が MCP の戻り値と一致することを確認しています。
+
+`tableau-analysis` スキルのワークブック生成まわりの記述は、Tableau Desktop 2026.2（Windows）での実測にもとづきます。
+**版が変われば構造も変わります。** 雛形は必ず対象環境で取り直してください。
+
+---
 
 ## 参考
 
+- [Hyper API](https://tableau.github.io/hyper-db/docs/) / [Hyper ファイルの読み取り](https://tableau.github.io/hyper-db/docs/guides/hyper_file/read/) / [接続とファイルロック](https://tableau.github.io/hyper-db/docs/hyper-api/connection/)
+- [Tableau Document Schemas](https://github.com/tableau/tableau-document-schemas)
 - [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
-- [Hyper API](https://tableau.github.io/hyper-db/docs/)
-- [Hyperファイルの読み取り](https://tableau.github.io/hyper-db/docs/guides/hyper_file/read/)
-- [Hyper接続とファイルロック](https://tableau.github.io/hyper-db/docs/hyper-api/connection/)
+- [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
 
-今後の予定は[ROADMAP.md](ROADMAP.md)を参照してください。
+今後の予定は [ROADMAP.md](ROADMAP.md) にあります。
