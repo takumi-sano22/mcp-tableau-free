@@ -159,18 +159,18 @@ PowerShell 5.1 はネイティブコマンドへ渡す引数から引用符を�
 **WSL / Linux / macOS**
 
 ```bash
+mkdir -p ~/.claude/skills
 cd ~/.claude
-mkdir -p skills
 cp -r <clone先>/.claude/skills/{tableau-analysis,mcp-local-server} skills/
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-cd $env:USERPROFILE\.claude
-New-Item -ItemType Directory -Force skills | Out-Null
-Copy-Item -Recurse -Force <clone先>\.claude\skills\tableau-analysis skills\
-Copy-Item -Recurse -Force <clone先>\.claude\skills\mcp-local-server skills\
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
+cd "$env:USERPROFILE\.claude"
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\tableau-analysis" skills\
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\mcp-local-server" skills\
 ```
 
 > **更新するときは、コピー先の同名ディレクトリを先に消します。** `cp -r` はコピー先に同名ディレクトリがあると、その中へ入れ子にコピーします（`skills/tableau-analysis/tableau-analysis/` ができます）。`rm -rf skills/tableau-analysis skills/mcp-local-server` してからコピーしてください。PowerShell の `Copy-Item -Force` は同じ場所へ上書きしますが、コピー元から消えたファイルは残ります。
@@ -220,18 +220,18 @@ Windows 側の Claude Code から使う場合は、`command` を `<clone先>/.ve
 **WSL / Linux / macOS**
 
 ```bash
+mkdir -p <対象リポジトリ>/.claude/skills
 cd <対象リポジトリ>/.claude
-mkdir -p skills
 cp -r <clone先>/.claude/skills/{tableau-analysis,mcp-local-server} skills/
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-cd <対象リポジトリ>\.claude
-New-Item -ItemType Directory -Force skills | Out-Null
-Copy-Item -Recurse -Force <clone先>\.claude\skills\tableau-analysis skills\
-Copy-Item -Recurse -Force <clone先>\.claude\skills\mcp-local-server skills\
+New-Item -ItemType Directory -Force "<対象リポジトリ>\.claude\skills" | Out-Null
+cd "<対象リポジトリ>\.claude"
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\tableau-analysis" skills\
+Copy-Item -Recurse -Force "<clone先>\.claude\skills\mcp-local-server" skills\
 ```
 
 リポジトリで共有するなら、`.mcp.json` と `.claude/skills/` をコミットします。
