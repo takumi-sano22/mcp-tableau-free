@@ -22,6 +22,7 @@ examples/
   create_sample_hyper.py  # 架空データの生成
   mcp-config.json         # stdio接続設定例
 data/                    # ローカルデータ。Git管理対象外
+.mcp.json                # Claude Code用のプロジェクト接続設定
 README.md
 ROADMAP.md
 pyproject.toml
@@ -44,10 +45,47 @@ $env:TABLEAU_DATA_DIR = (Resolve-Path data).Path
 privateリポジトリのcloneにはGitHub認証が必要です。仮想環境の有効化は不要です。
 サーバはstdio形式なので、単体起動時はMCPクライアントからの入力を待ちます。終了はCtrl+Cです。
 
-### MCPクライアントに接続
+## WSLでの実行
+
+Claude CodeをWSLで使う場合は、WSL側にPython環境を作ります。Tableau DesktopはWindows側のままで構いません。
+
+```bash
+git clone git@github.com:takumi-sano22/mcp-tool-use-sandbox.git
+cd mcp-tool-use-sandbox
+python3 -m venv .venv
+./.venv/bin/python -m pip install -e ".[tableau]"
+./.venv/bin/python examples/create_sample_hyper.py
+```
+
+`tableauhyperapi`はLinux向けのwheelも配布されるため、WSL側でもそのまま動作します。
+
+### Claude Codeに接続
+
+リポジトリ直下の`.mcp.json`がプロジェクト単位の接続設定です。個人環境の絶対パスを含めないよう、既定値を相対パスにし、環境変数で上書きできるようにしています。
+
+| 環境変数 | 既定値 | 用途 |
+| --- | --- | --- |
+| `TABLEAU_MCP_PYTHON` | `.venv/bin/python` | 起動するPython。Windowsでは`.venv\Scripts\python.exe`を指定する |
+| `TABLEAU_DATA_DIR` | `data` | 対象のデータディレクトリ |
+
+既定値は相対パスなので、リポジトリ直下で`claude`を起動してください。別の場所から起動する場合は、両方を絶対パスで指定します。
+`${VAR:-既定値}`という書き方の展開はClaude Codeが行います。ほかのクライアントに登録する場合は、`examples/mcp-config.json`のように値を直接指定してください。
+
+初回はプロジェクトのMCP設定を承認する操作が必要です。
+
+1. リポジトリ直下で`claude`を起動する
+2. プロジェクトのMCPサーバを使うか尋ねられたら承認する
+3. `claude mcp list`で`tableau-local`が`Connected`になることを確認する
+
+承認するまでは`claude mcp list`に`Pending approval`と表示され、toolを呼べません。
+`.mcp.json`を追加・変更したときは、起動中のClaude Codeを再起動してください。
+
+### ほかのMCPクライアントに接続
 
 `examples/mcp-config.json`の`C:/path/to/...`を実際の絶対パスに置き換え、利用クライアントのMCP設定に登録します。
 これは`mcpServers`形式の設定例です。クライアントによって登録形式が異なる場合は、同じcommand・args・環境変数を指定してください。
+
+### toolの呼び出し
 
 接続後、次の順でtoolを呼び出します。
 
@@ -59,11 +97,32 @@ privateリポジトリのcloneにはGitHub認証が必要です。仮想環境�
 
 ### Tableauとの併用
 
-`data/sample.hyper`をTableauから開いて可視化できます。同じファイルをTableauとHyper APIで同時に開くとロック競合するため、MCPから読むときはTableau側で閉じるか、コピーを利用してください。
+Hyperファイルは読み取りだけでもプロセス間で排他されます。接続中のファイルへ別プロセスから接続すると、`The database file is locked by another process`で失敗することを確認しました。
+Tableau Desktopでファイルを開いている間はMCPから読めず、逆も同様です。この場合、toolは日本語でロック競合を知らせます。
+
+ファイルを開かない`list_hyper_files`は、占有中でも動作します。
+
+同じサンプルをTableauで確認するときは、コピーを開くと競合しません。WSLのファイルをWindowsのTableauで開く場合は、次のようにコピーします。
+
+```bash
+# WSL側で、リポジトリ直下から実行する。<Windowsユーザー名>は自分の環境に合わせる
+cp data/sample.hyper /mnt/c/Users/<Windowsユーザー名>/Desktop/sample_tableau.hyper
+```
+
+1. エクスプローラーでコピーした`sample_tableau.hyper`をダブルクリックする（またはTableau Desktopへドラッグ＆ドロップする）
+2. `Extract`スキーマの`Sales`テーブルを開く
+3. `region`と`sales`の3行（東京1200、大阪900、福岡600）を確認する
+4. `preview_hyper_table`の戻り値と突き合わせる
+
+`\\wsl.localhost\<ディストリ名>\home\...`でWSL上のファイルを直接開くこともできますが、ネットワークパス経由でのロック挙動は未確認です。コピーの利用を勧めます。
+
+### そのほかの注意点
 
 `TABLEAU_DATA_DIR`で対象ディレクトリを指定します。未指定時は起動時の作業ディレクトリの`data`です。
 toolは対象領域外のパスを拒否し、任意SQLは受け付けません。ローカルの信頼できるクライアントでの実験を想定しています。
 実データや認証情報をコミットせず、MCPの戻り値が接続先AIに渡ることを踏まえて利用してください。
+
+Hyper APIは起動時の作業ディレクトリに`hyperd.log`を作ります。`.gitignore`で除外済みです。
 
 ## 実験を追加する
 
@@ -76,8 +135,14 @@ toolは対象領域外のパスを拒否し、任意SQLは受け付けません�
 
 ## 動作確認済み環境
 
-2026-09-12にWindows / Python 3.14.3 / MCP SDK 1.30.0 / tableauhyperapi 0.0.26558で、サンプル生成、stdio接続、3つのtool、不正パスと行数上限の拒否を確認しました。
-Tableau Desktop本体と利用者のAIクライアントへの接続は、ロードマップの次の段階です。
+いずれも2026-09-12に、MCP SDK 1.30.0 / tableauhyperapi 0.0.26558で確認しました。
+
+- Windows / Python 3.14.3
+  サンプル生成、stdio接続、3つのtool、対象外パスと行数上限の拒否。
+- WSL2 Ubuntu 24.04 / Python 3.12.3
+  上記に加えて、Claude Codeからの3つのtool呼び出し、ロック競合時のエラー、Windows側へコピーしたHyperファイルの読み取り。
+
+Windows側へコピーしたサンプルをTableau Desktop 2026.2で開き、3行の値がMCPの戻り値と一致することを確認しました。承認後の`claude mcp list`が`tableau-local`を`Connected`と表示することも確認しています。
 
 ## 参考
 
